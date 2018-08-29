@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>使多个小球运动 考虑id以及parent 新建数组存储坐标信息</title>
+    <script type="text/javascript" src="js/three.js"></script>
+    <script type="text/javascript" src="js/TrackballControls.js"></script>
+    <style>
+        body{margin: 0;overflow: hidden;}
+    </style>
+    <script src="js/loadxmldoc.js"></script>
+</head>
+<body>
+<script>
+    //以下均为二维数组，且每一行的元素个数不一定相同，行数为帧数
+    var cellId=new Array();//存放每一帧细胞的id
+    var cellParentId=new Array();//存放每一帧细胞父级的id
+    var xPosition=new Array();//存放每一帧读取的x坐标信息
+    var yPosition=new Array();//存放每一帧读取的y坐标信息
+    var zPosition=new Array();//存放每一帧读取的z坐标的信息
+    for (var m=0;m<31;m++) {
+        if(m.toString().length==1){
+            xmlDoc = loadXMLDoc("xml/GMEMfinalResult_frame000" + m + ".xml");
+        }
+        else{
+            xmlDoc = loadXMLDoc("xml/GMEMfinalResult_frame00" + m + ".xml");
+        }//连续处理xml文件
+
+        x = xmlDoc.getElementsByTagName("GaussianMixtureModel");
+        var cellPosition01=new Array();//存储位置信息的数组 后期分离
+        var cellId01=new Array();//存储id的数组
+        var cellParentId01=new Array();//存储父级id的数字
+
+        for (var i=0;i<x.length;i++){
+            cellPosition01.push(x[i].getAttribute("m"));
+            cellId01.push(Number(x[i].getAttribute("id")));
+            cellParentId01.push(Number(x[i].getAttribute("parent")));
+        }
+
+        var xPositionNumber01=new Array();
+        var yPositionNumber01=new Array();
+        var zPositionNumber01=new Array();//分别存储每一个元素的x y z坐标 数值的形式 存储所有的位置坐标 以数组的形式
+
+        var nullPositions01=new Array();//确定空格的位置
+        for (var i=0;i<cellPosition01.length;i++) {
+            for (var j = 0; j < cellPosition01[i].length; j++) {
+                if (cellPosition01[i][j].indexOf(" ") >= 0) {
+                    var count = j;
+                    nullPositions01.push(count);//每一行中有三个空格
+                }
+            }
+            //alert(nullPositions);显示空格的位置 正确
+
+            var xPositionString="";
+            for (var k=0;k<nullPositions01[0+i*3];k++) {
+
+                xPositionString +=cellPosition01[i][k];
+                //单个字符显示  有错误 应该是字符串的形式
+                //alert(xPositionString);//显示的单个数字
+            }
+
+            xPositionNumber01.push(Number(xPositionString));
+            // alert(xPositionNumber);
+
+            var yPositionString="";
+            for (var k=nullPositions01[0+i*3]+1;k<nullPositions01[1+i*3];k++) {
+
+                yPositionString += cellPosition01[i][k];
+
+            }
+            yPositionNumber01.push(Number(yPositionString));
+
+            var zPositionString="";
+            for (var k=nullPositions01[1+i*3]+1;k<nullPositions01[2+i*3];k++) {
+
+                zPositionString += cellPosition01[i][k];
+                //alert(zPositionString);
+            }
+
+            zPositionNumber01.push(Number(zPositionString));
+
+        }
+        cellId.push(cellId01);
+        cellParentId.push(cellParentId01);
+        xPosition.push(xPositionNumber01);
+        yPosition.push(yPositionNumber01);
+        zPosition.push(zPositionNumber01);//均为二维数组 行数为帧数 即处理的xml文件个数
+    }
+    /*document.write(xPosition[1]);
+    document.write("<br>");
+    document.write(yPosition[1]);
+    document.write("<br>");
+    document.write(zPosition[1]);
+    document.write("<br>");
+    document.write(cellId[1]);
+    document.write("<br>");
+    document.write(cellParentId[1]);*/
+</script>
+<div id="WebGL-output">
+</div>
+<canvas id="canvas" width="400" height="500"></canvas>
+<script type="text/javascript">
+    var canvas=document.getElementById("canvas");
+    //当网页加载完成后运行的JavaScript方法
+    var spheres=[];//用来存储每帧小球的个数
+    var k=0;//表示帧数
+    var id=null;
+
+    //添加鼠标控制
+    var clock=new THREE.Clock();
+
+    function init() {
+        var spheres = [];//用来存储多个小球
+        var scene = new THREE.Scene();//新建场景
+        //var camera=new THREE.PerspectiveCamera(45,window.innerWidth/window.innerHeight,0.1,1000);//新建正交摄像机的位
+        var camera = new THREE.OrthographicCamera(window.innerWidth / -8, window.innerWidth / 8, window.innerHeight / 8, window.innerHeight / -8, -200, 500);//透视摄像机
+        var renderer = new THREE.WebGLRenderer();//新建渲染器
+        renderer.setClearColor(new THREE.Color(0x000000));//设置背景颜色 为黑色
+        renderer.setSize(window.innerWidth, window.innerHeight);//设置渲染窗口的大小
+        /*var axes = new THREE.AxisHelper(12);
+        scene.add(axes);//新建坐标辅助对象*/
+        camera.position.x = 30;
+        camera.position.y = 30;
+        camera.position.z = 30;
+        //camera.lookAt(scene.position);//设置摄像机的位置和焦点
+        camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+        //添加鼠标控制
+        var trackballControls = new THREE.TrackballControls(camera);
+        trackballControls.rotateSpeed = 1.0;
+        trackballControls.zoomSpeed = 1.0;
+        trackballControls.panSpeed = 1.0;
+
+
+        //一个小球
+        for (var i = 0; i < cellId[0].length; i++) {
+            var sphereGeometry = new THREE.SphereGeometry(1.5, 20, 20);//半径
+            var sphereMaterial = new THREE.MeshBasicMaterial({color: 0xffffff * Math.random(), wireframe: true});
+            var sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+
+            //.position.x = xPosition[0][i];//
+            // sphere.position.y = yPosition[0][i];//
+            // sphere.position.z = zPosition[0][i];//生成多个小球 以及确定每个小球的位置 该数组存储第一帧所有的小球的坐标位置
+            spheres.push(sphere);
+            scene.add(sphere);
+        }
+        //将渲染结果添加到网页的元素中
+        document.getElementById("WebGL-output").appendChild(renderer.domElement);
+        id=setInterval(draw,1000);
+
+        function draw() {
+
+            var delta = clock.getDelta();
+            trackballControls.update(delta);
+
+                if (k == 0) {
+                    for (var i = 0; i < spheres.length; i++) {
+                        spheres[i].position.x = xPosition[k][i];//
+                        spheres[i].position.y = yPosition[k][i];//
+                        spheres[i].position.z = zPosition[k][i];//生成多个小球 以及确定每个小球的位置 该数组存储第一帧所有的小球的坐标位置
+                    }
+                }//第一帧显示
+                //其他帧的情况处理
+                else{
+                    var parentId = new Array();//创建新的数组用来存储每帧中cellParentId的值
+                    parentId = cellParentId[k];
+                    for (var j = 0; j < cellId[k].length; j++) {//查看剩余的每帧中parent为-1的位置并添加细胞
+                        while (cellParentId[k][j] == -1) {
+                            var sphereGeometry = new THREE.SphereGeometry(1.5, 20, 20);//半径
+                            var sphereMaterial = new THREE.MeshBasicMaterial({
+                                color: 0xffffff * Math.random(),
+                                wireframe: true
+                            });
+                            parentId.splice(j, 1);//删除为-1的值
+                            var sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+                            sphere.position.x = xPosition[k][j];
+                            sphere.position.y = yPosition[k][j];
+                            sphere.position.z = zPosition[k][j];//parent为-1的细胞的位置
+                            scene.add(sphere);
+                            spheres.splice(j, 0, sphere);//插入到相应的位置
+                        }
+                    }
+
+                    //判断cellParentId是否有相同的值
+                    for (var i = 0; i < cellParentId[k].length - 1; i++) {
+                        for (var j = i + 1; j < cellParentId[k].length; j++) {
+                            while ((cellParentId[k][i] !== -1) && (cellParentId[k][j] !== -1) && (cellParentId[k][j] ===cellParentId[k][i])){
+                                parentId.splice(j, 1);//删除存在相同的数的第二个值
+                                var sphere = spheres[i].clone();
+                                sphere.position.x = xPosition[k][j];
+                                sphere.position.y = yPosition[k][j];
+                                sphere.position.z = zPosition[k][j];
+                                scene.add(sphere);
+                                spheres.splice(j, 0, sphere);//在相同值得第二个处添加细胞
+                            }
+                        }
+                    }
+                    for (var i = 0, len = parentId.length; i < len; i++) {
+                        var m = parentId[i];//读取第k帧的parent的值
+                        spheres[m].position.x = xPosition[k][i];
+                        spheres[m].position.y = yPosition[k][i];
+                        spheres[m].position.z = zPosition[k][i];
+                    }
+                }
+            k++;
+            if(k===31){
+                clearInterval(id);
+            }
+            renderer.render(scene, camera);//两种不同的渲染方式
+        }
+    }
+
+    window.onload = init;//当网页加载后执行init方法
+</script>
+</body>
+</html>
